@@ -4,10 +4,9 @@ cytoscape-popper
 
 ## Description
 
-A Cytoscape.js extension for integrating Popper.js.
+A Cytoscape.js extension for integrating [Popper.js](https://popper.js.org/) ([demo](https://cytoscape.github.io/cytoscape.js-popper))
 
-This Extension has been ported from the Joseph Stahl's implemention to the newer tooling layout used by the Cytoscape Consortium.
-
+Popper.js allows you to dynamically align a div, e.g. a tooltip, to another element in the page.  This extension allows you to use Popper.js on Cytoscape elements.  This allows you to create DOM elements positioned on or around Cytoscape elements.  It is useful for tooltips and overlays, for example.
 
 ## Dependencies
 
@@ -55,67 +54,118 @@ Plain HTML/JS has the extension registered for you automatically, because no `re
 
 ## API
 
-#### Popper Basic Usage 
+This extension exposes two functions, `popper()` and `popperRef()`.  These functions are defined for both the core and for elements, so you can call `cy.popper()` or `ele.popper()` for example.
+
+Each function takes an options object, as follows:
+
+`cy.popper( options )` or `ele.popper( options )` : Get a [Popper](https://popper.js.org/popper-documentation.html#Popper) object for the specified core Cytoscape instance or the specified element.  This is useful for positioning a div relative to or on top of a core instance or element.
+
+`cy.popperRef( options )` or `ele.popperRef( options )` : Get a [Popper reference object](https://popper.js.org/popper-documentation.html#referenceObject) for the specified core Cytoscape instance or the specified element.  A Popper reference object is useful only for positioning, as it represent the target rather than the content.  This is useful for cases where you want to create a `new Popper()` manually or where you need to pass a `popperRef` object to another library like Tippy.js.
+
+ - `options`
+   - `content` : The HTML content of the popper.  May be a DOM `Element` reference or a function that returns one.
+   - `renderedPosition` : A function that can be used to override the [rendered Cytoscape position](http://js.cytoscape.org/#notation/position) of the Popper target.  This option is mandatory when using Popper on the core.  For an element, the centre of its bounding box is used by default.
+   - `renderedDimensions` : A function that can be used to override the [rendered](http://js.cytoscape.org/#notation/position) Cytoscape [bounding box dimensions](http://js.cytoscape.org/#eles.renderedBoundingBox) considered for the popper target (i.e. `cy` or `ele`).  It defines only the effective width and height (`bb.w` and `bb.h`) of the Popper target.   This option is more often useful for elements rather than for the core.
+   - `popper` : The Popper [options object](https://popper.js.org/popper-documentation.html#new_Popper_new).  You may use this to override Popper options.
+
+### `popper()` example
+
 ``` js
-//Create Basic Popper
-var popperTest = cy.nodes()[0].popper({
-  target: "targetID",
-  popper: popperOptions,
-  boundingBox : boundingBoxFunction
+// create a basic popper on the first node
+let popper1 = cy.nodes()[0].popper({
+  content: () => {
+    let div = document.createElement('div');
+
+    div.innerHTML = 'Popper content';
+
+    document.body.appendChild(div);
+
+    return div;
+  },
+  popper: {} // my popper options here
+});
+
+// create a basic popper on the core
+let popper2 = cy.popper({
+  content: () => {
+    let div = document.createElement('div');
+
+    div.innerHTML = 'Popper content';
+
+    document.body.appendChild(div);
+
+    return div;
+  },
+  renderedPosition: () => ({ x: 100, y: 200 }),
+  popper: {} // my popper options here
 });
 ```
-* Returns a Popper Object  
-* (Required) (String, Function, or HTML Element) Target : Refers to the actual HTML content of your popper. 
-* (Required) Options : Refer to [Popper.js](http://popper.js.org) for more information on popper options
-* (Optional) BoundingBox : Provides ability to manually set a bounding box
 
-#### Popper Ref Basic Usage
-``` js 
-cy.elements().nodes()[0].popperRef(options)
-```
+### `popperRef()` example
 
-* Returns a Reference Object
-* (Optional) Options : Allows for the user to override the bounding box 
+``` js
+// create a basic popper ref for the first node
+let popperRef1 = cy.nodes()[0].popperRef();
 
-#### Basic Binding (Sticky Tooltips)
-```js
-cy.elements().nodes()[0].on('drag', function () {
-   popperTest.scheduleUpdate();
+// create a basic popper on the core
+let popperRef2 = cy.popperRef({
+  renderedPosition: () => ({ x: 200, y: 300 })
 });
 ```
 
-#### Popper With Custom Bounding Box
+### Sticky `popper()` example
+
 ```js
-//Bind Popper with Custom Bounding Box
-var popperTest2 = cy.popper({
-   target: "core-popper",
-   popper: {
-     placement: "bottom"
-   },
-   boundingBox: function (data) {
-      return {
-        top: 450 + window.pageYOffset,
-        left: 600 + window.pageXOffset,
-        right: 700 + window.pageXOffset,
-        bottom: 220 + window.pageYOffset,
-        width: 1,
-        height: 1,
-      };
+let node = cy.nodes().first();
+
+let popper = node.popper({
+  content: () => {
+    let div = document.createElement('div');
+
+    div.innerHTML = 'Sticky Popper content';
+
+    document.body.appendChild( div );
+
+    return div;
   }
 });
+
+let update = () => {
+  popper.scheduleUpdate();
+};
+
+node.on('position', update);
+
+cy.on('pan zoom resize', update);
 ```
 
-#### Overriding The Entire Reference Object
+### Usage with Tippy.js
+
+This extension can also be used to enable [Tippy.js](https://atomiks.github.io/tippyjs/) tooltip functionality with Cytoscape, by simply passing the `popperRef` object into Tippy.
+
 ```js
-//Bind Popper with Custom Bounding Box
-var popperTest3 = cy.nodes()[0].popper({
-  target: "core-popper-ref",
-  refObject : refObject,
-    popper: {
-       placement: "bottom"
-    }
- });
+let node = cy.nodes().first();
+
+let ref = node.popperRef(); // used only for positioning
+
+// using tippy ^2.0.0
+let tippy = new Tippy(ref, { // tippy options:
+  html: (() => {
+    let content = document.createElement('div');
+
+    content.innerHTML = 'Tippy content';
+
+    return content;
+  })(),
+  trigger: 'manual' // probably want manual mode
+}).tooltips[0];
+
+node.on('tap', () => tippy.show());
 ```
+
+Refer to [Tippy.js](https://atomiks.github.io/tippyjs) documentation for more details.
+
+
 
 ## Build targets
 
@@ -132,9 +182,10 @@ N.b. all builds use babel, so modern ES features can be used in the `src`.
 
 This project is set up to automatically be published to npm and bower.  To publish:
 
-1. Build the extension : `npm run build`
+1. Build the extension : `npm run build:release`
 1. Commit the build : `git commit -am "Build for release"`
 1. Bump the version number and tag: `npm version major|minor|patch`
 1. Push to origin: `git push && git push --tags`
 1. Publish to npm: `npm publish .`
-1. If publishing to bower for the first time, you'll need to run `bower register cytoscape-popper https://github.com/cytoscape&#x2F;cytoscape.js-popper.git`
+1. If publishing to bower for the first time, you'll need to run `bower register cytoscape-popper https://github.com/cytoscape/cytoscape.js-popper.git`
+1. [Make a new release](https://github.com/cytoscape/cytoscape.js-popper/releases/new) for Zenodo.
